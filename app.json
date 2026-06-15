@@ -21,13 +21,15 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#021B12"
-      }
+      },
+      "package": "com.ajidani.ajidani"
     },
     "web": {
       "favicon": "./assets/logo.png"
     },
     "plugins": [
-      "expo-video"
+      "expo-video",
+      "expo-font"
     ],
     "extra": {
       "eas": {
