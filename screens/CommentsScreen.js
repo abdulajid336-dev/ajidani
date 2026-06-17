@@ -75,7 +75,7 @@ export default function CommentsScreen({ route }) {
     <KeyboardAvoidingView
       style={{
         flex: 1,
-        backgroundColor: 'black',
+        backgroundColor: '#fff',
       }}
       behavior="padding"
     >
@@ -87,7 +87,7 @@ export default function CommentsScreen({ route }) {
       >
         <Text
           style={{
-            color: 'white',
+            color: 'black',
             fontSize: 20,
             fontWeight: 'bold',
             marginBottom: 20,
@@ -162,7 +162,7 @@ export default function CommentsScreen({ route }) {
 
                   <Text
                     style={{
-                      color: 'white',
+                      color: 'black',
                       marginTop: 5,
                     }}
                   >
@@ -175,7 +175,7 @@ export default function CommentsScreen({ route }) {
           ListEmptyComponent={
             <Text
               style={{
-                color: 'white',
+                color: 'black',
               }}
             >
               Belum ada komentar
@@ -209,14 +209,14 @@ export default function CommentsScreen({ route }) {
             );
           }}
           style={{
-            backgroundColor: 'black',
-            color: 'white',
+            backgroundColor: 'white',
+            color: 'black',
             height: inputHeight,
             paddingVertical: 8,
             paddingHorizontal: 12,
             borderRadius: 10,
             borderWidth: 1,
-            borderColor: 'gray',
+            borderColor: '#ddd',
           }}
         />
         <TouchableOpacity
