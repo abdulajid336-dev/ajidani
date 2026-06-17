@@ -8,9 +8,7 @@ import HomeScreen from './screens/HomeScreen';
 import RegisterScreen from './screens/RegisterScreen';
 
 import { supabase } from './screens/Supabase';
-import SearchScreen from './screens/SearchScreen';
 import UploadScreen from './screens/UploadScreen';
-import InboxScreen from './screens/InboxScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import AdminMenuScreen from './screens/AdminMenuScreen';
 import AdminUploadScreen from './screens/AdminUploadScreen';
@@ -36,12 +34,8 @@ function MainTabs({ isAdmin }) {
 
           if (route.name === 'Home') {
             iconName = 'home';
-          } else if (route.name === 'Search') {
-            iconName = 'search';
           } else if (route.name === 'Upload') {
             iconName = 'add-circle';
-          } else if (route.name === 'Inbox') {
-            iconName = 'chatbubble';
           } else if (route.name === 'Profile') {
             iconName = 'person';
           } else if (route.name === 'Admin') {
@@ -76,9 +70,7 @@ function MainTabs({ isAdmin }) {
           },
         })}
       />
-      <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="Upload" component={UploadScreen} />
-      <Tab.Screen name="Inbox" component={InboxScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
       {isAdmin && (
         <Tab.Screen

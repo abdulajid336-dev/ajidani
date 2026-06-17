@@ -346,7 +346,7 @@ export default function ProfileScreen({ navigation }) {
             placeholderTextColor="#999"
             style={{
               backgroundColor: 'white',
-              color: 'white',
+              color: 'black',
               padding: 12,
               borderRadius: 10,
               marginBottom: 10,
@@ -360,7 +360,7 @@ export default function ProfileScreen({ navigation }) {
             multiline={true}
             style={{
               backgroundColor: 'white',
-              color: 'white',
+              color: 'black',
               padding: 12,
               borderRadius: 10,
               marginBottom: 10,

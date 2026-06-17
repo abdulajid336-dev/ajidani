@@ -11,6 +11,7 @@ import {
   FlatList,
   BackHandler,
   Alert,
+  TextInput,
 } from 'react-native';
 
 import { supabase } from './Supabase';
@@ -32,6 +33,7 @@ function VideoItem({ uri }) {
 }
 export default function HomeScreen({ route, navigation }) {
   const [posts, setPosts] = useState([]);
+  const [searchText, setSearchText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [likesMap, setLikesMap] = useState({});
   const [commentsMap, setCommentsMap] = useState({});
@@ -338,7 +340,22 @@ export default function HomeScreen({ route, navigation }) {
           ))}
         </View>
 
-
+        <TextInput
+          placeholder="🔍 Cari informasi desa..."
+          placeholderTextColor="#999"
+          value={searchText}
+          onChangeText={setSearchText}
+          style={{
+            backgroundColor: 'white',
+            borderWidth: 1,
+            borderColor: '#ddd',
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            marginBottom: 10,
+            color: '#222',
+          }}
+        />
         <Text
           style={{
             color: '#00aa55',
@@ -353,7 +370,13 @@ export default function HomeScreen({ route, navigation }) {
       </View>
 
       <FlatList
-        data={posts}
+        data={posts.filter(
+          item =>
+            !searchText ||
+            item.title
+              ?.toLowerCase()
+              .includes(searchText.toLowerCase())
+        )}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
 
