@@ -189,7 +189,7 @@ export default function HomeScreen({ route, navigation }) {
   }
 
 
-  let pageTitle = 'Untuk Masyarakat Kerticala';
+  let pageTitle = 'Untuk Masyarakat Desa Kerticala';
 
   if (selectedCategory === 'profil_desa') {
     pageTitle = 'Profil Desa Kerticala';
