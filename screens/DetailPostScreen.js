@@ -5,16 +5,39 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Alert,
 } from 'react-native';
 import { supabase } from './Supabase';
 import { VideoView, useVideoPlayer } from 'expo-video';
 function VideoItem({ uri }) {
-  const player = useVideoPlayer(uri);
+  const player = useVideoPlayer(
+    uri,
+    (player) => {
+      player.loop = false;
+      player.muted = false;
+      player.play();
+    }
+  );
+  
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!player) return;
 
+      if (
+        player.duration > 0 &&
+        player.currentTime >=
+        player.duration - 0.5
+      ) {
+        player.pause();
+        player.currentTime = 0;
+      }
+    }, 500);
+
+    return () => clearInterval(timer);
+  }, [player]);
   return (
     <VideoView
+      key={uri}
       player={player}
       style={{
         width: '100%',
@@ -36,10 +59,7 @@ export default function DetailPostScreen({ route, navigation }) {
 
   const [likesCount, setLikesCount] = useState(0);
   const [liked, setLiked] = useState(false);
-
-  const [comments, setComments] = useState([]);
   const [commentsCount, setCommentsCount] = useState(0);
-  const [commentText, setCommentText] = useState('');
   const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
@@ -64,7 +84,7 @@ export default function DetailPostScreen({ route, navigation }) {
   async function getLikes() {
     const { count } = await supabase
       .from('likes')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('post_id', post.id);
 
     setLikesCount(count || 0);
@@ -78,7 +98,7 @@ export default function DetailPostScreen({ route, navigation }) {
 
     const { data } = await supabase
       .from('likes')
-      .select('*')
+      .select('id')
       .eq('post_id', post.id)
       .eq('user_id', user.id)
       .single();
@@ -87,34 +107,15 @@ export default function DetailPostScreen({ route, navigation }) {
   }
 
   async function getComments() {
-    const { data } = await supabase
+    const { count } = await supabase
       .from('comments')
-      .select('*')
-      .eq('post_id', post.id)
-      .order('created_at', { ascending: false });
+      .select('id', {
+        count: 'exact',
+        head: true,
+      })
+      .eq('post_id', post.id);
 
-    setComments(data || []);
-    setCommentsCount(data?.length || 0);
-  }
-
-  async function addComment() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !commentText.trim()) return;
-
-    await supabase.from('comments').insert([
-      {
-        post_id: post.id,
-        user_id: user.id,
-        comment: commentText,
-        user_name: user.email,
-      },
-    ]);
-
-    setCommentText('');
-    getComments();
+    setCommentsCount(count || 0);
   }
 
   async function toggleLike() {
@@ -126,7 +127,7 @@ export default function DetailPostScreen({ route, navigation }) {
 
     const { data: existingLike } = await supabase
       .from('likes')
-      .select('*')
+      .select('id')
       .eq('post_id', post.id)
       .eq('user_id', user.id)
       .single();
@@ -139,6 +140,7 @@ export default function DetailPostScreen({ route, navigation }) {
         .eq('user_id', user.id);
 
       setLiked(false);
+      setLikesCount(prev => prev - 1);
     } else {
       await supabase
         .from('likes')
@@ -150,9 +152,9 @@ export default function DetailPostScreen({ route, navigation }) {
         ]);
 
       setLiked(true);
+      setLikesCount(prev => prev + 1);
     }
 
-    getLikes();
   }
   async function deletePost() {
     Alert.alert(
@@ -182,11 +184,6 @@ export default function DetailPostScreen({ route, navigation }) {
               .delete()
               .eq('id', post.id);
 
-            const { data: checkData } = await supabase
-              .from('posts')
-              .select('*')
-              .eq('id', post.id);
-
             if (error) {
               alert(error.message);
               return;
@@ -213,9 +210,10 @@ export default function DetailPostScreen({ route, navigation }) {
       ) : (
         <Image
           source={{ uri: post.image_url }}
+          resizeMode="cover"
           style={{
             width: '100%',
-            height: 500,
+            height: 380,
           }}
         />
       )}
@@ -223,11 +221,11 @@ export default function DetailPostScreen({ route, navigation }) {
       <View
         style={{
           padding: 20,
-          marginTop: -18,
+          marginTop: -20,
           backgroundColor: '#fff',
           borderTopLeftRadius: 25,
           borderTopRightRadius: 25,
-          
+
         }}
       >
         <Text
@@ -296,7 +294,7 @@ export default function DetailPostScreen({ route, navigation }) {
           >
             <Text
               style={{
-                color: 'white',
+                color: '#222',
                 fontSize: 18,
                 marginRight: 25,
               }}

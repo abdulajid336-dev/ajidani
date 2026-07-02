@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
+import * as Updates from 'expo-updates';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LoginScreen from './screens/LoginScreen';
 import HomeScreen from './screens/HomeScreen';
 import RegisterScreen from './screens/RegisterScreen';
-
+import MediaViewerScreen from './screens/MediaViewerScreen';
 import { supabase } from './screens/Supabase';
 import UploadScreen from './screens/UploadScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -16,14 +17,16 @@ import DetailPostScreen from './screens/DetailPostScreen';
 import CategoryScreen from './screens/CategoryScreen';
 import CommentsScreen from './screens/CommentsScreen';
 import AdminCategoryScreen from './screens/AdminCategoryScreen';
-
+import MediaEditorScreen from './screens/MediaEditorScreen';
+import MediaEditorVideoScreen from './screens/MediaEditorVideoScreen';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import AdminDeleteScreen from './screens/AdminDeleteScreen';
-
+import UploadConfirmScreen from './screens/UploadConfirmScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
 function MainTabs({ isAdmin }) {
   return (
     <Tab.Navigator
@@ -31,53 +34,27 @@ function MainTabs({ isAdmin }) {
         headerShown: false,
         tabBarIcon: ({ color, size }) => {
           let iconName;
-
-          if (route.name === 'Home') {
-            iconName = 'home';
-          } else if (route.name === 'Upload') {
-            iconName = 'add-circle';
-          } else if (route.name === 'Profile') {
-            iconName = 'person';
-          } else if (route.name === 'Admin') {
-            iconName = 'shield-checkmark';
-          }
-
-          return (
-            <Ionicons
-              name={iconName}
-              size={size}
-              color={color}
-            />
-          );
+          if (route.name === 'Home') iconName = 'home';
+          else if (route.name === 'Upload') iconName = 'add-circle';
+          else if (route.name === 'Profile') iconName = 'person';
+          else if (route.name === 'Admin') iconName = 'shield-checkmark';
+          return <Ionicons name={iconName} size={size} color={color} />;
         },
-
         tabBarActiveTintColor: '#00ff88',
         tabBarInactiveTintColor: 'gray',
-        tabBarStyle: {
-          backgroundColor: '#111',
-          borderTopColor: '#222',
-        },
+        tabBarStyle: { backgroundColor: '#111', borderTopColor: '#222' },
       })}
     >
       <Tab.Screen
         name="Home"
         component={HomeScreen}
         listeners={({ navigation }) => ({
-          tabPress: (e) => {
-            navigation.navigate('Home', {
-              resetHome: Date.now(),
-            });
-          },
+          tabPress: () => navigation.navigate('Home', { resetHome: Date.now() }),
         })}
       />
       <Tab.Screen name="Upload" component={UploadScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
-      {isAdmin && (
-        <Tab.Screen
-          name="Admin"
-          component={AdminMenuScreen}
-        />
-      )}
+      {isAdmin ? <Tab.Screen name="Admin" component={AdminMenuScreen} /> : null}
     </Tab.Navigator>
   );
 }
@@ -89,108 +66,69 @@ export default function App() {
 
   useEffect(() => {
     checkSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-
-        if (session?.user) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('is_admin')
-            .eq('user_id', session.user.id)
-            .single();
-
-          setIsAdmin(data?.is_admin === true);
-        } else {
-          setIsAdmin(false);
-        }
+    checkOTAUpdate();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      if (session?.user) {
+        const { data } = await supabase.from('profiles').select('is_admin').eq('user_id', session.user.id).single();
+        setIsAdmin(data?.is_admin === true);
+      } else {
+        setIsAdmin(false);
       }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
+  async function checkOTAUpdate() {
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
+      }
+    } catch {}
+  }
 
   async function checkSession() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
+    const { data: { session } } = await supabase.auth.getSession();
     setSession(session);
-
     if (session?.user) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('user_id', session.user.id)
-        .single();
-
+      const { data } = await supabase.from('profiles').select('is_admin').eq('user_id', session.user.id).single();
       setIsAdmin(data?.is_admin === true);
     }
-
     setLoading(false);
   }
 
   if (loading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <View style={{flex: 1,justifyContent: 'center',alignItems: 'center'}}><ActivityIndicator size="large" /></View>;
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {session ? (
-          <>
-            <Stack.Screen name="Main">
-              {() => <MainTabs isAdmin={isAdmin} />}
-            </Stack.Screen>
-
-            <Stack.Screen
-              name="AdminUpload"
-              component={AdminUploadScreen}
-            />
-            <Stack.Screen
-              name="AdminCategory"
-              component={AdminCategoryScreen}
-            />
-            <Stack.Screen
-              name="AdminDelete"
-              component={AdminDeleteScreen}
-            />
-            <Stack.Screen
-              name="Category"
-              component={CategoryScreen}
-            />
-            <Stack.Screen
-              name="DetailPost"
-              component={DetailPostScreen}
-            />
-            <Stack.Screen
-              name="Comments"
-              component={CommentsScreen}
-            />
-          </>
-        ) : (
-          <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {session ? (
+            <>
+              <Stack.Screen name="Main">{() => <MainTabs isAdmin={isAdmin} />}</Stack.Screen>
+              <Stack.Screen name="AdminUpload" component={AdminUploadScreen} />
+              <Stack.Screen name="AdminCategory" component={AdminCategoryScreen} />
+              <Stack.Screen name="AdminDelete" component={AdminDeleteScreen} />
+              <Stack.Screen name="Category" component={CategoryScreen} />
+              <Stack.Screen name="DetailPost" component={DetailPostScreen} />
+              <Stack.Screen name="Comments" component={CommentsScreen} />
+              <Stack.Screen name="MediaViewer" component={MediaViewerScreen} />
+              <Stack.Screen name="MediaEditor" component={MediaEditorScreen} />
+              <Stack.Screen name="MediaEditorVideo" component={MediaEditorVideoScreen} />
+              <Stack.Screen name="UploadConfirm" component={UploadConfirmScreen} />
+            </>
+          ) : (
+            <>
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }

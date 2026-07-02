@@ -9,21 +9,6 @@ import {
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { supabase } from './Supabase';
-function VideoItem({ uri }) {
-  const player = useVideoPlayer(uri);
-
-  return (
-    <VideoView
-      player={player}
-      style={{
-        width: '100%',
-        height: 220,
-      }}
-      nativeControls
-      contentFit="contain"
-    />
-  );
-}
 export default function CategoryScreen({
   route,
   navigation,
@@ -45,7 +30,8 @@ export default function CategoryScreen({
       .select('*')
       .eq('status', 'approved')
       .eq('category', category)
-      .order('id', { ascending: false });
+      .order('id', { ascending: false })
+      .limit(50);
 
     setPosts(data || []);
   }
@@ -134,6 +120,10 @@ export default function CategoryScreen({
       </View>
 
       <FlatList
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={true}
         data={posts}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
@@ -143,9 +133,10 @@ export default function CategoryScreen({
               backgroundColor: '#1e1e1e',
             }}
             onPress={() =>
-              navigation.navigate('DetailPost', {
+              navigation.navigate('MediaViewer', {
                 post: item,
-                fromAdmin: false,
+                likesCount: 0,
+                commentsCount: 0,
               })
             }
           >
@@ -192,9 +183,7 @@ export default function CategoryScreen({
                 {item.author_name}
               </Text>
             </View>
-            <Text style={{ color: 'yellow' }}>
-              {item.media_type}
-            </Text>
+
             {item.media_type === 'video' ? (
               <View>
                 <Image
@@ -203,6 +192,7 @@ export default function CategoryScreen({
                       item.thumbnail_url ||
                       item.image_url,
                   }}
+                  resizeMode="cover"
                   style={{
                     width: '100%',
                     height: 220,
@@ -232,6 +222,7 @@ export default function CategoryScreen({
             ) : (
               <Image
                 source={{ uri: item.image_url }}
+                resizeMode="cover"
                 style={{
                   width: '100%',
                   height: 220,

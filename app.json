@@ -6,7 +6,8 @@
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/36d37a5a-2ab1-4ccc-8cb4-f7b0a84ac89d"
     },
     "runtimeVersion": {
       "policy": "appVersion"

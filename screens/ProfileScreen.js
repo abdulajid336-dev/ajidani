@@ -66,8 +66,8 @@ export default function ProfileScreen({ navigation }) {
       .from('posts')
       .select('*')
       .eq('user_id', user.id)
-      .order('id', { ascending: false });
-
+      .order('id', { ascending: false })
+      .limit(50);
     if (!error) {
       setPosts(data || []);
     }
@@ -106,7 +106,7 @@ export default function ProfileScreen({ navigation }) {
           ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.6,
       });
 
     if (result.canceled) return;
@@ -120,6 +120,15 @@ export default function ProfileScreen({ navigation }) {
     } = await supabase.auth.getUser();
 
     if (!user) return;
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('user_id', user.id)
+      .single();
+
+    const oldAvatarUrl = profile?.avatar_url;
+    const oldFileName =
+      oldAvatarUrl?.split('/').pop();
 
     const fileName =
       user.id + '-' + Date.now() + '.jpg';
@@ -170,6 +179,15 @@ export default function ProfileScreen({ navigation }) {
     if (updateError) {
       alert(updateError.message);
       return;
+    }
+    if (oldFileName) {
+      const { data, error } =
+        await supabase.storage
+          .from('avatars')
+          .remove([oldFileName]);
+
+      console.log('REMOVE:', data);
+      console.log('ERROR:', error);
     }
 
     alert('Foto profil berhasil disimpan');
@@ -420,11 +438,10 @@ export default function ProfileScreen({ navigation }) {
           >
             <Image
               source={{
-                uri:
-                  item.media_type === 'video'
-                    ? item.thumbnail_url
-                    : item.image_url,
+                uri: item.image_url,
               }}
+
+              resizeMode="cover"
               style={{
                 width: '100%',
                 height: 180,

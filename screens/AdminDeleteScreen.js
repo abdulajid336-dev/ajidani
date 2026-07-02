@@ -59,6 +59,15 @@ export default function AdminDeleteScreen({
             await supabase.storage
               .from('posts')
               .remove([fileName]);
+            await supabase
+              .from('comments')
+              .delete()
+              .eq('post_id', item.id);
+
+            await supabase
+              .from('likes')
+              .delete()
+              .eq('post_id', item.id);
 
             const { data, error } =
               await supabase
@@ -66,12 +75,6 @@ export default function AdminDeleteScreen({
                 .delete()
                 .eq('id', item.id)
                 .select();
-            
-            const { data: checkData } =
-              await supabase
-                .from('posts')
-                .select('*')
-                .eq('id', item.id);
 
             if (error) {
               alert(error.message);

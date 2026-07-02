@@ -1,4 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from 'react';
 import {
   useIsFocused,
 } from '@react-navigation/native';
@@ -7,38 +12,146 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Image,
   FlatList,
   BackHandler,
   Alert,
   TextInput,
 } from 'react-native';
-
 import { supabase } from './Supabase';
 import { VideoView, useVideoPlayer } from 'expo-video';
-function VideoItem({ uri }) {
-  const player = useVideoPlayer(uri);
+function VideoPreview({
+  uri,
+  onPress,
+  isVisible,
+  screenFocused,
+  expanded,
+}) {
+  const [finished, setFinished] =
+    useState(false);
+  const player = useVideoPlayer(uri, (player) => {
+    player.loop = false;
+    player.muted = false;
+    player.play();
+  });
+  useEffect(() => {
+    if (!player) return;
+
+    if (isVisible && screenFocused) {
+
+      player.muted = false;
+
+      if (!finished) {
+        player.play();
+      }
+
+    } else {
+
+      player.pause();
+      player.muted = true;
+
+      setFinished(false);
+    }
+  }, [isVisible, screenFocused]);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!player) return;
+
+      if (
+        player.duration > 0 &&
+        player.currentTime >=
+        player.duration - 0.5
+      ) {
+        player.pause();
+        player.currentTime = 0;
+        setFinished(true);
+      }
+    }, 500);
+
+    return () => clearInterval(timer);
+  }, [player]);
+
 
   return (
-    <VideoView
-      player={player}
-      style={{
-        width: '100%',
-        height: 220,
-      }}
-      nativeControls
-      contentFit="contain"
-    />
+    <View>
+      <VideoView
+        player={player}
+        style={{
+          width: '100%',
+          height: 300,
+          borderRadius: 10,
+        }}
+        nativeControls={false}
+        contentFit="cover"
+      />
+
+      <Pressable
+        onPress={() => {
+          onPress();
+        }}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 999,
+          elevation: 999,
+        }}
+      />
+
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          width: '100%',
+          height: '100%',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <Text
+          style={{
+            color: 'white',
+            fontSize: 50,
+            fontWeight: 'bold',
+          }}
+        >
+          ▶
+        </Text>
+      </View>
+    </View>
   );
 }
+
+
 export default function HomeScreen({ route, navigation }) {
   const [posts, setPosts] = useState([]);
+  const [postLimit, setPostLimit] = useState(20);
   const [searchText, setSearchText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [likesMap, setLikesMap] = useState({});
   const [commentsMap, setCommentsMap] = useState({});
   const [notificationMap, setNotificationMap] = useState({});
+  const [likedPosts, setLikedPosts] = useState({});
   const isFocused = useIsFocused();
+  const [visibleVideos, setVisibleVideos] = useState([]);
+  const [expandedVideoId, setExpandedVideoId] = useState(null);
+  const onViewableItemsChanged = useCallback(
+    ({ viewableItems }) => {
+      setVisibleVideos(
+        viewableItems.map(
+          (item) => item.item.id
+        )
+      );
+    },
+    []
+  );
+
+  const viewabilityConfig = {
+    itemVisiblePercentThreshold: 60,
+  };
   useEffect(() => {
     if (isFocused) {
       getPosts(selectedCategory);
@@ -48,8 +161,7 @@ export default function HomeScreen({ route, navigation }) {
 
   const isHomeMode = selectedCategory === null;
   useEffect(() => {
-    getPosts();
-    getNotifications();
+    getPosts(selectedCategory);
   }, []);
   useEffect(() => {
     if (route?.params?.resetHome) {
@@ -89,31 +201,45 @@ export default function HomeScreen({ route, navigation }) {
     return () => backHandler.remove();
   }, [isFocused]);
 
-  async function getPosts(category = null) {
+  async function getPosts(
+    category = null,
+    limitValue = postLimit
+  ) {
+    // GANTI QUERY INI 👇
     let query = supabase
-      .from('posts')
-      .select('*')
-      .eq('status', 'approved');
+    .from('posts')
+    .select(`
+        *,
+        profiles!user_id!left (
+            name,
+            avatar_url
+        )
+    `)
+    .eq('status', 'approved');
+
 
     if (category) {
       query = query.eq('category', category);
     }
 
-    const { data, error } = await query.order('id', {
-      ascending: false,
-    });
+    const { data, error } = await query
+      .order('id', {
+        ascending: false,
+      })
+      .range(0, limitValue - 1);
 
     if (error) {
       console.log(error);
       return;
     }
-
+    const postIds = data.map(item => item.id);
     setPosts(data);
 
     // AMBIL SEMUA LIKE
     const { data: likesData } = await supabase
       .from('likes')
-      .select('post_id');
+      .select('post_id')
+      .in('post_id', postIds);
 
     const likesCount = {};
 
@@ -127,7 +253,8 @@ export default function HomeScreen({ route, navigation }) {
     // AMBIL SEMUA KOMENTAR
     const { data: commentsData } = await supabase
       .from('comments')
-      .select('post_id');
+      .select('post_id')
+      .in('post_id', postIds);
 
     const commentsCount = {};
 
@@ -136,6 +263,73 @@ export default function HomeScreen({ route, navigation }) {
         (commentsCount[item.post_id] || 0) + 1;
     });
     setCommentsMap(commentsCount);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: myLikes } = await supabase
+        .from('likes')
+        .select('post_id')
+        .eq('user_id', user.id);
+
+      const likedMap = {};
+
+      myLikes?.forEach((item) => {
+        likedMap[item.post_id] = true;
+      });
+
+      setLikedPosts(likedMap);
+    }
+  }
+
+
+  async function handleLike(postId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    if (likedPosts[postId]) {
+      await supabase
+        .from('likes')
+        .delete()
+        .eq('post_id', postId)
+        .eq('user_id', user.id);
+
+      setLikedPosts((prev) => ({
+        ...prev,
+        [postId]: false,
+      }));
+
+      setLikesMap((prev) => ({
+        ...prev,
+        [postId]: Math.max(
+          (prev[postId] || 1) - 1,
+          0
+        ),
+      }));
+    } else {
+      await supabase
+        .from('likes')
+        .insert([
+          {
+            post_id: postId,
+            user_id: user.id,
+          },
+        ]);
+
+      setLikedPosts((prev) => ({
+        ...prev,
+        [postId]: true,
+      }));
+
+      setLikesMap((prev) => ({
+        ...prev,
+        [postId]: (prev[postId] || 0) + 1,
+      }));
+    }
   }
   async function getNotifications() {
     const {
@@ -205,6 +399,10 @@ export default function HomeScreen({ route, navigation }) {
 
   if (selectedCategory === 'dok_desa') {
     pageTitle = 'Dokumentasi Kegiatan Desa';
+  }
+
+  if (selectedCategory === 'seni_budaya') {
+    pageTitle = 'Seni & Budaya Desa Kerticala';
   }
 
   if (selectedCategory === 'dok_masyarakat') {
@@ -370,6 +568,45 @@ export default function HomeScreen({ route, navigation }) {
       </View>
 
       <FlatList
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={true}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        ListFooterComponent={
+          posts.length >= postLimit ? (
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#00aa55',
+                margin: 15,
+                padding: 12,
+                borderRadius: 10,
+              }}
+              onPress={() => {
+                const newLimit = postLimit + 50;
+
+                setPostLimit(newLimit);
+
+                getPosts(
+                  selectedCategory,
+                  newLimit
+                );
+              }}
+            >
+              <Text
+                style={{
+                  color: 'white',
+                  textAlign: 'center',
+                  fontWeight: 'bold',
+                }}
+              >
+                Lihat Selanjutnya
+              </Text>
+            </TouchableOpacity>
+          ) : null
+        }
+
         data={posts.filter(
           item =>
             !searchText ||
@@ -382,13 +619,16 @@ export default function HomeScreen({ route, navigation }) {
 
           <TouchableOpacity
             style={styles.card}
-            onPress={() =>
-              navigation.navigate('DetailPost', {
-                post: item,
-                selectedCategory,
-                fromProfile: false,
-              })
-            }
+            onPress={() => {
+              navigation.navigate(
+                'MediaViewer',
+                {
+                  post: item,
+                  likesCount: likesMap[item.id] || 0,
+                  commentsCount: commentsMap[item.id] || 0,
+                }
+              )
+            }}
           >
 
             <View
@@ -398,10 +638,10 @@ export default function HomeScreen({ route, navigation }) {
                 marginBottom: 10,
               }}
             >
-              {item.author_avatar ? (
+              {item.profiles?.avatar_url || item.avatar_url ? (
                 <Image
                   source={{
-                    uri: item.author_avatar,
+                    uri: item.profiles?.avatar_url || item.avatar_url,
                   }}
                   style={{
                     width: 40,
@@ -418,8 +658,12 @@ export default function HomeScreen({ route, navigation }) {
                     borderRadius: 20,
                     marginRight: 10,
                     backgroundColor: '#ccc',
+                    justifyContent: 'center',
+                    alignItems: 'center',
                   }}
-                />
+                >
+                  <Text style={{ fontSize: 18 }}>👤</Text>
+                </View>
               )}
 
               <Text
@@ -429,58 +673,131 @@ export default function HomeScreen({ route, navigation }) {
                   fontSize: 15,
                 }}
               >
-                {item.author_name}
+                {item.profiles?.name || item.username || item.author_name || 'User'}
               </Text>
             </View>
 
-            {item.media_type === 'video' ? (
-              <View>
-                <Image
-                  source={{
-                    uri:
-                      item.thumbnail_url ||
-                      item.image_url,
-                  }}
-                  style={styles.image}
-                />
 
-                <View
-                  style={{
-                    position: 'absolute',
-                    width: '100%',
-                    height: '100%',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: 'white',
-                      fontSize: 50,
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    ▶
-                  </Text>
-                </View>
-              </View>
+            {item.media_type === 'video' ? (
+              <VideoPreview
+                uri={item.image_url}
+                isVisible={visibleVideos.includes(item.id)}
+                screenFocused={isFocused}
+                onPress={() =>
+                  navigation.navigate(
+                    'MediaViewer',
+                    {
+                      post: item,
+                      likesCount: likesMap[item.id] || 0,
+                      commentsCount: commentsMap[item.id] || 0,
+                    }
+                  )
+                }
+              />
             ) : (
+
               <Image
                 source={{ uri: item.image_url }}
                 style={styles.image}
+                resizeMode="cover"
+                onError={(e) =>
+                  console.log(
+                    'ERROR GAMBAR =',
+                    item.image_url,
+                    e.nativeEvent
+                  )
+                }
               />
             )}
 
             <Text style={styles.titlePost}>
               {item.title || 'Tanpa Judul'}
             </Text>
-            <Text style={styles.infoRow}>
-              ❤️ {likesMap[item.id] || 0}
-              {'   '}
-              💬 {commentsMap[item.id] || 0}
-              {'   '}
-              📅 {new Date(item.created_at).toLocaleDateString('id-ID')}
-            </Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginTop: 8,
+              }}
+            >
+
+              <Text
+                style={{
+                  color: 'red',
+                  fontWeight: 'bold',
+                }}
+              >
+                ❤️ {likesMap[item.id] || 0}
+              </Text>
+              <Pressable
+                onPress={() =>
+                  navigation.navigate('Comments', {
+                    post: item,
+                  })
+                }
+                style={{ marginLeft: 20 }}
+              >
+                <Text style={{ color: '#222' }}>
+                  💬 {commentsMap[item.id] || 0}
+                </Text>
+              </Pressable>
+
+              <Text
+                style={{
+                  marginLeft: 20,
+                  color: '#666',
+                }}
+              >
+                📅 {new Date(item.created_at).toLocaleDateString('id-ID')}
+              </Text>
+
+            </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-around',
+                alignItems: 'center',
+                marginTop: 12,
+                paddingTop: 10,
+                borderTopWidth: 1,
+                borderTopColor: '#eee',
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => handleLike(item.id)}
+
+              >
+                <Text
+                  style={{
+                    color: likedPosts[item.id]
+                      ? 'red'
+                      : '#888',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  {likedPosts[item.id]
+                    ? '❤️ Suka'
+                    : '🤍 Suka'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate('Comments', {
+                    post: item,
+                  })
+                }
+              >
+                <Text
+                  style={{
+                    color: '#222',
+                    fontWeight: 'bold',
+                  }}
+                >
+                  💬 Komentar
+                </Text>
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
         )}
       />

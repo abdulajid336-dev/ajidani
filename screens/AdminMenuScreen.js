@@ -46,31 +46,31 @@ export default function AdminMenuScreen({ navigation }) {
         }
         style={menuStyle}
       >
-        <Text style={textStyle}>📢 Pengumuman</Text>
+        <Text style={textStyle}>📢 Info Desa</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         onPress={() =>
           navigation.navigate('AdminCategory', {
-            title: 'Dok Pembangunan',
+            title: 'Pembangunan',
             category: 'pembangunan',
           })
         }
         style={menuStyle}
       >
-        <Text style={textStyle}>🏗 Dok Pembangunan</Text>
+        <Text style={textStyle}>🏗 Pembangunan</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
         onPress={() =>
           navigation.navigate('AdminCategory', {
-            title: 'Dok Kegdes',
+            title: 'Kepemerintahan',
             category: 'dok_desa',
           })
         }
         style={menuStyle}
       >
-        <Text style={textStyle}>🏛 Dok Kegdes</Text>
+        <Text style={textStyle}>🏛 Kepemerintahan</Text>
       </TouchableOpacity>
       <TouchableOpacity
         onPress={() =>
@@ -87,13 +87,13 @@ export default function AdminMenuScreen({ navigation }) {
       <TouchableOpacity
         onPress={() =>
           navigation.navigate('AdminCategory', {
-            title: 'Dok Kegmas',
+            title: 'Kemasyarakatan',
             category: 'dok_masyarakat',
           })
         }
         style={menuStyle}
       >
-        <Text style={textStyle}>👥 Dok Kegmas</Text>
+        <Text style={textStyle}>👥 Kemasyarakatan</Text>
       </TouchableOpacity>
     </View>
   );

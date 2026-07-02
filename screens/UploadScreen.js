@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,16 +9,20 @@ import {
 } from 'react-native';
 
 import * as ImagePicker from 'expo-image-picker';
-import * as VideoThumbnails from 'expo-video-thumbnails';
-import { supabase } from './Supabase';
+import * as ImageManipulator from 'expo-image-manipulator';
 
-export default function UploadScreen({ navigation }) {
+export default function UploadScreen({
+  navigation,
+  route,
+}) {
   const [image, setImage] = useState(null);
-  const [title, setTitle] = useState('');
-  const [caption, setCaption] = useState('');
-  const [uploading, setUploading] = useState(false);
   const [mediaType, setMediaType] = useState('image');
-  const [thumbnail, setThumbnail] = useState(null);
+  useEffect(() => {
+    if (route.params?.editedMedia) {
+      setImage(route.params.editedMedia);
+      setMediaType(route.params.mediaType);
+    }
+  }, [route.params]);
 
   async function pickImage(type = 'image') {
     const result =
@@ -28,60 +32,38 @@ export default function UploadScreen({ navigation }) {
             ? ImagePicker.MediaTypeOptions.Videos
             : ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 1,
+        quality: 0.7,
       });
 
     if (!result.canceled) {
       const uri = result.assets[0].uri;
+      let finalUri = uri;
 
-      setImage(uri);
-      setMediaType(type);
+      if (type === 'image') {
+        const result = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: 1920 } }],
+          {
+            compress: 0.7,
+            format: ImageManipulator.SaveFormat.JPEG,
+          }
+        );
 
-      if (type === 'video') {
-        try {
-          const { uri: thumbnailUri } =
-            await VideoThumbnails.getThumbnailAsync(
-              uri,
-              { time: 1000 }
-            );
-
-          setThumbnail(thumbnailUri);
-        } catch (e) {
-          
-        }
+        finalUri = result.uri;
       }
-    }
-  }
-  async function takePhoto(type = 'image') {
-    const result =
-      await ImagePicker.launchCameraAsync({
-        mediaTypes:
-          type === 'video'
-            ? ImagePicker.MediaTypeOptions.Videos
-            : ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 1,
-      });
 
-    if (!result.canceled) {
-      const uri = result.assets[0].uri;
-
-      setImage(uri);
-      setMediaType(type);
-
-      if (type === 'video') {
-        try {
-          const { uri: thumbnailUri } =
-            await VideoThumbnails.getThumbnailAsync(
-              uri,
-              { time: 1000 }
-            );
-
-          setThumbnail(thumbnailUri);
-        } catch (e) {
-          
-        }
+      if (type === 'image') {
+        navigation.navigate('MediaEditor', {
+          mediaUri: finalUri,
+          mediaType: type,
+        });
+      } else {
+        navigation.navigate('MediaEditorVideo', {
+          mediaUri: finalUri,
+          mediaType: type,
+        });
       }
+
     }
   }
 
@@ -118,13 +100,13 @@ export default function UploadScreen({ navigation }) {
         name: fileName,
         type: mimeType,
       });
-      
+
       const { error } = await supabase.storage
         .from('posts')
         .upload(fileName, formData, {
           contentType: mimeType,
         });
-      
+
       if (error) {
         setUploading(false);
         alert(error.message);
@@ -136,42 +118,6 @@ export default function UploadScreen({ navigation }) {
         .getPublicUrl(fileName);
 
       const imageUrl = urlData.publicUrl;
-      let thumbnailUrl = null;
-
-      if (mediaType === 'video' && thumbnail) {
-        const thumbName =
-          `thumb-${Date.now()}.jpg`;
-
-        const thumbFormData = new FormData();
-
-        thumbFormData.append('file', {
-          uri: thumbnail,
-          name: thumbName,
-          type: 'image/jpeg',
-        });
-
-        const { error: thumbError } =
-          await supabase.storage
-            .from('posts')
-            .upload(
-              thumbName,
-              thumbFormData,
-              {
-                contentType: 'image/jpeg',
-              }
-            );
-
-        if (!thumbError) {
-          const {
-            data: thumbUrlData,
-          } = supabase.storage
-            .from('posts')
-            .getPublicUrl(thumbName);
-
-          thumbnailUrl =
-            thumbUrlData.publicUrl;
-        }
-      }
 
       const {
         data: { user },
@@ -187,15 +133,12 @@ export default function UploadScreen({ navigation }) {
         .insert([
           {
             image_url: imageUrl,
-            thumbnail_url: thumbnailUrl,
             user_id: user.id,
             title: title,
             caption: caption,
             status: 'approved',
             category: 'umum',
 
-            author_name: profile?.name || '',
-            author_avatar: profile?.avatar_url || '',
             is_admin_post: false,
             media_type: mediaType,
           }
@@ -279,71 +222,6 @@ export default function UploadScreen({ navigation }) {
               flexDirection: 'row',
               justifyContent: 'space-between',
               width: '90%',
-              marginBottom: 15,
-            }}
-          >
-            <TouchableOpacity
-              onPress={() => takePhoto('image')}
-              style={{
-                width: '48%',
-                height: 100,
-                backgroundColor: '#4CAF50',
-                borderRadius: 20,
-                justifyContent: 'center',
-                alignItems: 'center',
-                elevation: 5,
-              }}
-            >
-              <Text style={{ fontSize: 30 }}>
-                📷
-              </Text>
-
-              <Text
-                style={{
-                  color: 'white',
-                  fontSize: 16,
-                  fontWeight: 'bold',
-                  marginTop: 5,
-                }}
-              >
-                Ambil Foto
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => takePhoto('video')}
-              style={{
-                width: '48%',
-                height: 100,
-                backgroundColor: '#FF9800',
-                borderRadius: 20,
-                justifyContent: 'center',
-                alignItems: 'center',
-                elevation: 5,
-              }}
-            >
-              <Text style={{ fontSize: 30 }}>
-                🎥
-              </Text>
-
-              <Text
-                style={{
-                  color: 'white',
-                  fontSize: 16,
-                  fontWeight: 'bold',
-                  marginTop: 5,
-                }}
-              >
-                Rekam Video
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              width: '90%',
             }}
           >
             <TouchableOpacity
@@ -370,10 +248,9 @@ export default function UploadScreen({ navigation }) {
                   marginTop: 5,
                 }}
               >
-                Pilih Foto Galeri
+                Pilih foto
               </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               onPress={() => pickImage('video')}
               style={{
@@ -398,113 +275,13 @@ export default function UploadScreen({ navigation }) {
                   marginTop: 5,
                 }}
               >
-                Pilih Video Galeri
+                Pilih Video
               </Text>
             </TouchableOpacity>
+
           </View>
         </View>
-      ) : (
-        <>
-
-          <View
-            style={{
-              flexDirection: 'row',
-              gap: 15,
-              marginTop: 25,
-              marginBottom: 20,
-            }}
-          >
-            <TouchableOpacity
-              disabled={uploading}
-              onPress={uploadImage}
-              style={{
-                backgroundColor:
-                  uploading ? 'gray' : 'green',
-                paddingVertical: 12,
-                paddingHorizontal: 25,
-                borderRadius: 10,
-              }}
-            >
-              <Text
-                style={{
-                  color: 'white',
-                  fontWeight: 'bold',
-                }}
-              >
-                {uploading
-                  ? 'Mengupload...'
-                  : 'Upload'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => {
-                setImage(null);
-                pickImage();
-              }}
-              style={{
-                backgroundColor: 'red',
-                paddingVertical: 12,
-                paddingHorizontal: 25,
-                borderRadius: 10,
-              }}
-            >
-              <Text
-                style={{
-                  color: 'white',
-                  fontWeight: 'bold',
-                }}
-              >
-                Cancel
-              </Text>
-            </TouchableOpacity>
-
-          </View>
-          <TextInput
-            placeholder="Tulis judul kegiatan..."
-            placeholderTextColor="#999"
-            value={title}
-            onChangeText={setTitle}
-            style={{
-              backgroundColor: '#222',
-              color: 'white',
-              width: '100%',
-              padding: 15,
-              borderRadius: 10,
-              marginBottom: 15,
-              Height: 40,
-            }}
-          />
-          <TextInput
-            placeholder="Tulis keterangan kegiatan..."
-            placeholderTextColor="#999"
-            value={caption}
-            onChangeText={setCaption}
-            multiline
-            numberOfLines={5}
-            textAlignVertical="top"
-            style={{
-              backgroundColor: '#222',
-              color: 'white',
-              width: '100%',
-              padding: 15,
-              borderRadius: 10,
-              marginBottom: 20,
-              minHeight: 180,
-            }}
-          />
-
-          <Image
-            source={{ uri: image }}
-            style={{
-              width: '100%',
-              height: 250,
-              borderRadius: 20,
-              marginBottom: 20,
-            }}
-          />
-        </>
-      )}
+      ) : null}
     </View>
   );
 }
